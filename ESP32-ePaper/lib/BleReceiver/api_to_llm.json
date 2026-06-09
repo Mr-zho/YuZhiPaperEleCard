@@ -1,0 +1,277 @@
+{
+  "library": {
+    "name": "BleReceiver",
+    "version": "1.0.0",
+    "description": "ESP32 BLE接收端库，通过BLE GATT协议接收手机端发送的文本和图像数据，支持数据分片重组。专为大模型(LLM)端对接设计，提供标准化的二进制协议。",
+    "architecture": "分层架构: BLE传输层 -> 协议解析层(Proto) -> 业务能力层(Capability)"
+  },
+
+  "ble_service": {
+    "description": "ESP32作为BLE Server，手机作为Client主动连接并写入数据",
+    "device_name": "ESP32-BLE (可通过 begin(name) 自定义)",
+    "service_uuid": "0000FFF0-0000-1000-8000-00805F9B34FB",
+    "characteristics": [
+      {
+        "name": "RX (接收通道)",
+        "uuid": "0000FFF1-0000-1000-8000-00805F9B34FB",
+        "properties": ["WRITE", "WRITE_NR"],
+        "direction": "手机 -> ESP32",
+        "description": "手机向ESP32发送二进制协议数据包。支持有响应写和无响应写，无响应写可提高传输效率。"
+      },
+      {
+        "name": "TX (通知通道)",
+        "uuid": "0000FFF2-0000-1000-8000-00805F9B34FB",
+        "properties": ["NOTIFY", "READ"],
+        "direction": "ESP32 -> 手机 (预留)",
+        "description": "ESP32主动通知手机数据更新（预留扩展）。需搭配BLE2902 CCCD描述符。",
+        "note": "当前版本TX通道已创建但未被接收逻辑使用，仅作预留"
+      }
+    ],
+    "connection_flow": [
+      "1. ESP32调用 begin() -> 初始化BLE栈 -> 创建Server/Service/Characteristics -> 启动广播",
+      "2. 手机扫描到设备 -> 连接 -> 发现服务",
+      "3. 手机向RX characteristic写入数据 -> ESP32的 onWrite 回调触发 -> 数据送入协议解析层",
+      "4. 设备断开时自动重启广播 (onDisconnect -> restart advertising)"
+    ]
+  },
+
+  "protocol": {
+    "layer": "Proto.h - ProtoBase 类",
+    "description": "二进制帧协议层，负责数据帧定界、类型识别、分片重组",
+    "magic_number": "0xA5 (帧起始标记，用于同步和帧定界)",
+    "version": "0x01",
+    "types": {
+      "TYPE_TEXT": {
+        "value": 2,
+        "description": "文本数据类型"
+      },
+      "TYPE_IMAGE": {
+        "value": 3,
+        "description": "图像数据类型"
+      }
+    },
+    "frame_format": {
+      "description": "每个数据包采用TLV-like结构 (Type-Length-Value)",
+      "header": {
+        "size": "10 bytes",
+        "fields": [
+          {"field": "magic",     "offset": 0,  "size": 1, "type": "uint8_t",  "value": "0xA5",  "description": "帧同步标记"},
+          {"field": "version",   "offset": 1,  "size": 1, "type": "uint8_t",  "value": "0x01",  "description": "协议版本号"},
+          {"field": "type",      "offset": 2,  "size": 1, "type": "uint8_t",  "value": "2|3",   "description": "数据类型: 2=文本, 3=图像"},
+          {"field": "flags",     "offset": 3,  "size": 1, "type": "uint8_t",  "value": "-",     "description": "标志位(预留)"},
+          {"field": "seq",       "offset": 4,  "size": 2, "type": "uint16_t", "value": "0..n",  "description": "分片序号(从0开始)"},
+          {"field": "total",     "offset": 6,  "size": 2, "type": "uint16_t", "value": "1..n",  "description": "总分片数(=1表示单包)"},
+          {"field": "payload_len","offset": 8, "size": 4, "type": "uint32_t", "value": "-",     "description": "payload负载长度(字节数)"}
+        ]
+      },
+      "payload": {
+        "description": "紧跟在10字节header之后，长度为 payload_len 字节",
+        "text_payload": "原始UTF-8字符串数据 (type=2时)",
+        "image_payload": "ImageHeader + 像素数据 (type=3时)"
+      }
+    },
+    "image_sub_header": {
+      "size": "5 bytes (嵌在payload最前面)",
+      "fields": [
+        {"field": "width",  "offset": 0, "size": 2, "type": "uint16_t", "description": "图像宽度(像素)"},
+        {"field": "height", "offset": 2, "size": 2, "type": "uint16_t", "description": "图像高度(像素)"},
+        {"field": "format", "offset": 4, "size": 1, "type": "uint8_t",  "description": "图像格式(预留)"}
+      ]
+    },
+    "fragmentation": {
+      "description": "大数据包自动分片传输、重组",
+      "trigger": "当 total > 1 时启动分片重组流程",
+      "reassembly": {
+        "session_key": "由 (type << 16) | total 生成",
+        "buffers": "每组分片使用独立 ReassemblyBuffer",
+        "max_sessions": 4,
+        "completion": "当 receivedCount == total 时合并所有分片 -> 调用 dispatch()",
+        "timeout": "5000ms (超时未收满自动清理)"
+      }
+    }
+  },
+
+  "capability_api": {
+    "layer": "Capability.h - TextCapability / ImageCapability",
+    "description": "业务能力抽象层：从解析后的payload中提取业务数据",
+    "text_capability": {
+      "class": "TextCapability",
+      "input": "type=2 的协议包",
+      "process": "将payload bytes构造为 Arduino String",
+      "output": "触发虚函数: onTextReceived(const String& text)",
+      "override_point": "用户继承后实现 onTextReceived() 即可获取完整文本"
+    },
+    "image_capability": {
+      "class": "ImageCapability",
+      "input": "type=3 的协议包",
+      "process": "解析payload前5字节为ImageHeader(width/height/format)，剩余为像素数据",
+      "output": "触发虚函数: onImageReceived(const uint8_t* img, uint16_t w, uint16_t h)",
+      "override_point": "用户继承后实现 onImageReceived() 即可获取图像数据及尺寸",
+      "pixel_format_note": "当前像素数据为2bit灰度(每像素2bit)，尺寸 = w * h / 4 字节"
+    }
+  },
+
+  "ble_receiver_class": {
+    "class": "BleReceiver",
+    "inherits": ["ProtoBase", "TextCapability", "ImageCapability"],
+    "public_api": [
+      {
+        "method": "begin",
+        "signature": "void begin(const char* name = \"ESP32-BLE\")",
+        "description": "初始化BLE栈，创建GATT Server/Services/Characteristics，启动广播",
+        "param_name": "BLE设备广播名",
+        "call_once": true
+      },
+      {
+        "method": "setImageCallback",
+        "signature": "void setImageCallback(std::function<void(const uint8_t*, uint16_t)> cb)",
+        "description": "注册图像数据接收回调(非虚函数方式)",
+        "param_cb": "回调函数: (图像数据指针, 数据大小)",
+        "note": "onImageReceived 默认实现中会调用此回调"
+      },
+      {
+        "method": "input (继承自 ProtoBase)",
+        "signature": "void input(const uint8_t* data, size_t len)",
+        "description": "向协议层喂入原始数据(由 RxCallbacks::onWrite 自动调用)",
+        "note": "通常不直接调用，数据从BLE characteristic写入自动流入"
+      }
+    ],
+    "override_points": [
+      {
+        "method": "dispatch",
+        "signature": "void dispatch(uint8_t type, const uint8_t* payload, size_t len)",
+        "description": "协议分发：根据type分别调用 handleText / handleImage",
+        "visibility": "protected"
+      },
+      {
+        "method": "onTextReceived",
+        "signature": "void onTextReceived(const String& text)",
+        "description": "文本接收回调——用户继承后重写此方法处理文本数据",
+        "default": "Serial.println(text)"
+      },
+      {
+        "imageCallback": "onImageReceived",
+        "signature": "void onImageReceived(const uint8_t* img, uint16_t w, uint16_t h)",
+        "description": "图像接收回调——用户继承后重写此方法处理图像数据",
+        "default": "打印宽高并触发 imageCallback 回调"
+      }
+    ]
+  },
+
+  "llm_integration_guide": {
+    "description": "以下是大模型(LLM)应用对接本库时应遵循的协议规范",
+    "protocol_steps": {
+      "step1_connect": {
+        "action": "手机端连接BLE设备",
+        "detail": "扫描名为 'ESP32-BLE' 的BLE设备(或自定义名称)，连接并发现 Service UUID: 0000FFF0-0000-1000-8000-00805F9B34FB"
+      },
+      "step2_send_text": {
+        "action": "发送文本数据到ESP32",
+        "detail": "向 RX characteristic (UUID: 0000FFF1-...) 写入二进制帧",
+        "example": {
+          "hex_bytes": "A5 01 02 00 00 00 01 00 05 00 00 00 48 65 6C 6C 6F",
+          "explanation": [
+            "A5          = magic (固定)",
+            "01          = version (固定)",
+            "02          = type (TEXT)",
+            "00          = flags (预留置0)",
+            "00 00       = seq (序号0)",
+            "01 00       = total (总分片1=单包) LE格式",
+            "05 00 00 00 = payload_len (5字节) LE格式",
+            "48 65 6C 6C 6F = 'Hello' UTF-8"
+          ]
+        }
+      },
+      "step3_send_image": {
+        "action": "发送图像数据到ESP32",
+        "detail": "向 RX characteristic 写入包含ImageHeader的二进制帧",
+        "example": {
+          "hex_bytes": "A5 01 03 00 00 00 01 00 XX 00 00 00 [Width_LE] [Height_LE] [Format] [PixelData...]",
+          "explanation": [
+            "A5 01 03 00  = magic + version + type=IMAGE + flags",
+            "00 00 01 00  = seq=0, total=1",
+            "XX 00 00 00  = payload_len (包含ImageHeader+像素)",
+            "Width_LE     = 图像宽度, 2字节小端",
+            "Height_LE    = 图像高度, 2字节小端",
+            "Format       = 格式标识, 1字节",
+            "PixelData    = 剩余为像素数据"
+          ],
+          "pixel_format": "2bit灰度, 每像素2bit, 总大小 = width * height / 4 字节"
+        }
+      },
+      "step4_fragmentation": {
+        "action": "大数据自动分片",
+        "condition": "当总数据超过单次MTU时(或主动分片)",
+        "detail": "将数据分成N片，每片设置相同的 total 值和递增的 seq 值",
+        "example": {
+          "fragment_0": "A5 01 03 00 00 00 03 00 [frag0_len_LE] [数据片0]",
+          "fragment_1": "A5 01 03 00 01 00 03 00 [frag1_len_LE] [数据片1]",
+          "fragment_2": "A5 01 03 00 02 00 03 00 [frag2_len_LE] [数据片2]",
+          "note": "total=3, seq从0递增到2。ESP32自动收齐全部分片后合并再dispatch"
+        }
+      }
+    },
+    "important_notes": [
+      "所有多字节整数使用小端序(LE/Little-Endian)",
+      "单包(total=1)无需分片处理，直接发送完整帧即可",
+      "最大并发重组session数为4，超过会丢弃最早session",
+      "每组分片5秒内没收完会自动丢弃",
+      "payload_len的值不包括header自身(10字节)",
+      "写入RX characteristic时可直接WRITE_NR(无响应写)以提高吞吐量"
+    ],
+    "return_data": {
+      "note": "当前版本主要支持单向通信(手机->ESP32)，TX通道已预留用于后续双向通信扩展。接收端通过改写 onTextReceived / onImageReceived 处理数据。"
+    }
+  },
+
+  "usage_examples": {
+    "arduino_sketch": {
+      "code": [
+        "#include <BleReceiver.h>",
+        "",
+        "BleReceiver ble;",
+        "",
+        "void setup() {",
+        "  Serial.begin(115200);",
+        "  ble.begin(\"MyDevice\");   // 启动BLE",
+        "  ble.setImageCallback([](const uint8_t* data, uint16_t size) {",
+        "    Serial.printf(\"收到图像: %d bytes\\n\", size);",
+        "    // 处理图像数据...",
+        "  });",
+        "}",
+        "",
+        "// 重写文本接收（需继承BleReceiver）"
+      ]
+    },
+    "llm_side_python": {
+      "note": "以下为大模型端(如Python脚本)生成BLE数据帧的伪代码",
+      "code": [
+        "import struct",
+        "",
+        "# 文本数据帧生成",
+        "def make_text_frame(text: str) -> bytes:",
+        "    payload = text.encode('utf-8')",
+        "    header = struct.pack('<',",
+        "        0xA5,       # magic",
+        "        0x01,       # version",
+        "        0x02,       # type=TEXT",
+        "        0x00,       # flags",
+        "        0,          # seq",
+        "        1,          # total",
+        "        len(payload) # payload_len",
+        "    )",
+        "    return header + payload",
+        "",
+        "# 图像数据帧生成",
+        "def make_image_frame(width: int, height: int, pixels: bytes) -> bytes:",
+        "    img_header = struct.pack('<', width, height, 0)",
+        "    payload = img_header + pixels",
+        "    header = struct.pack('<',",
+        "        0xA5, 0x01, 0x03, 0x00,",
+        "        0, 1, len(payload)",
+        "    )",
+        "    return header + payload"
+      ]
+    }
+  }
+}

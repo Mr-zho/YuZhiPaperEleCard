@@ -1,0 +1,457 @@
+{
+  "library": "EPD_10in85",
+  "description": "10.85英寸电子墨水屏驱动库 (Waveshare)",
+  "resolution": {
+    "width": 680,
+    "height": 480
+  },
+  "modules": {
+    "DEV_Config": {
+      "description": "硬件底层接口 — GPIO、SPI、延时、模块初始化和退出",
+      "macros": [
+        {
+          "name": "DEV_Digital_Write(_pin, _value)",
+          "description": "写GPIO电平",
+          "params": "_pin: GPIO引脚号, _value: 0(LOW)或1(HIGH)",
+          "example": "DEV_Digital_Write(EPD_RST_PIN, 1);"
+        },
+        {
+          "name": "DEV_Digital_Read(_pin)",
+          "description": "读GPIO电平",
+          "params": "_pin: GPIO引脚号",
+          "return": "0或1",
+          "example": "UBYTE busy = DEV_Digital_Read(EPD_BUSY_PIN);"
+        },
+        {
+          "name": "DEV_Delay_ms(__xms)",
+          "description": "毫秒级延时",
+          "params": "__xms: 延时毫秒数",
+          "example": "DEV_Delay_ms(100);"
+        }
+      ],
+      "functions": [
+        {
+          "name": "DEV_Module_Init",
+          "signature": "UBYTE DEV_Module_Init(void)",
+          "description": "初始化硬件模块（GPIO、SPI、电源等），使用屏幕前必须先调用",
+          "return": "UBYTE — 成功返回0",
+          "example": "DEV_Module_Init();"
+        },
+        {
+          "name": "GPIO_Mode",
+          "signature": "void GPIO_Mode(UWORD GPIO_Pin, UWORD Mode)",
+          "description": "设置指定引脚的模式（输入/输出）",
+          "params": "GPIO_Pin: 引脚号, Mode: 模式",
+          "example": "GPIO_Mode(EPD_RST_PIN, 0);"
+        },
+        {
+          "name": "DEV_SPI_WriteByte",
+          "signature": "void DEV_SPI_WriteByte(UBYTE data)",
+          "description": "SPI写入一个字节",
+          "params": "data: 要写入的字节",
+          "example": "DEV_SPI_WriteByte(0x12);"
+        },
+        {
+          "name": "DEV_SPI_ReadByte",
+          "signature": "UBYTE DEV_SPI_ReadByte(void)",
+          "description": "SPI读取一个字节",
+          "return": "读取到的字节",
+          "example": "UBYTE val = DEV_SPI_ReadByte();"
+        },
+        {
+          "name": "DEV_SPI_Write_nByte",
+          "signature": "void DEV_SPI_Write_nByte(UBYTE *pData, UDOUBLE len)",
+          "description": "SPI批量写入多个字节",
+          "params": "pData: 数据指针, len: 字节数",
+          "example": "DEV_SPI_Write_nByte(frame_buffer, buffer_size);"
+        },
+        {
+          "name": "DEV_Module_Exit",
+          "signature": "void DEV_Module_Exit(void)",
+          "description": "关闭硬件模块，释放资源",
+          "example": "DEV_Module_Exit();"
+        }
+      ],
+      "pin_config": [
+        { "name": "EPD_SCK_PIN",  "value": 13,  "description": "SPI时钟" },
+        { "name": "EPD_MOSI_PIN", "value": 14,  "description": "SPI主机输出" },
+        { "name": "EPD_CS_M_PIN",  "value": 15,  "description": "片选(主)" },
+        { "name": "EPD_CS_S_PIN",  "value": 2,   "description": "片选(从)" },
+        { "name": "EPD_RST_PIN",  "value": 26,  "description": "复位" },
+        { "name": "EPD_DC_PIN",   "value": 27,  "description": "数据/命令" },
+        { "name": "EPD_BUSY_PIN", "value": 25,  "description": "忙状态" },
+        { "name": "EPD_PWR_PIN",  "value": 33,  "description": "电源控制" }
+      ]
+    },
+
+    "EPD_10in85": {
+      "description": "屏幕驱动层 — 初始化、清屏、显示、睡眠",
+      "functions": [
+        {
+          "name": "EPD_10in85_Init",
+          "signature": "void EPD_10in85_Init(void)",
+          "description": "全刷新初始化（重置屏幕、设置参数、等待空闲）",
+          "example": "EPD_10in85_Init();"
+        },
+        {
+          "name": "EPD_10in85_Init_Part",
+          "signature": "void EPD_10in85_Init_Part(void)",
+          "description": "局部刷新初始化（刷新速度更快，适合动态内容）",
+          "example": "EPD_10in85_Init_Part();"
+        },
+        {
+          "name": "EPD_10in85_Init_GUI",
+          "signature": "void EPD_10in85_Init_GUI(void)",
+          "description": "GUI模式初始化（配合GUI_Paint使用，设置绘图缓存区）",
+          "example": "EPD_10in85_Init_GUI();"
+        },
+        {
+          "name": "EPD_10in85_Clear",
+          "signature": "void EPD_10in85_Clear(void)",
+          "description": "全局清屏为白色",
+          "example": "EPD_10in85_Clear();"
+        },
+        {
+          "name": "EPD_10in85_Clear_Black",
+          "signature": "void EPD_10in85_Clear_Black(void)",
+          "description": "全局清屏为黑色",
+          "example": "EPD_10in85_Clear_Black();"
+        },
+        {
+          "name": "EPD_10in85_Display",
+          "signature": "void EPD_10in85_Display(const UBYTE *Image)",
+          "description": "全屏刷新显示图像数据（黑白二值）",
+          "params": "Image: 图像数据指针（680*480/8 = 40800字节）",
+          "example": "EPD_10in85_Display(&frame_buffer[0]);"
+        },
+        {
+          "name": "EPD_10in85_Display2",
+          "signature": "void EPD_10in85_Display2(const UBYTE *Image)",
+          "description": "第二种全屏刷新方式（驱动内部采用不同的刷屏命令序列）",
+          "params": "Image: 图像数据指针",
+          "example": "EPD_10in85_Display2(&frame_buffer[0]);"
+        },
+        {
+          "name": "EPD_10in85_DisplayPart",
+          "signature": "void EPD_10in85_DisplayPart(const UBYTE *Image, UWORD xstart, UWORD ystart, UWORD image_width, UWORD image_heigh)",
+          "description": "局部区域刷新显示，只更新屏幕的一部分",
+          "params": "Image: 图像数据, xstart/ystart: 起始坐标, image_width/image_heigh: 图像宽高",
+          "example": "EPD_10in85_DisplayPart(icon_data, 100, 50, 64, 64);"
+        },
+        {
+          "name": "EPD_10in85b_Display_Partial",
+          "signature": "void EPD_10in85b_Display_Partial(const UBYTE *Image, UWORD Xstart, UWORD Ystart, UWORD Xend, UWORD Yend)",
+          "description": "区域局部刷新（指定矩形区域[Xstart,Ystart]-[Xend,Yend]）",
+          "params": "Image: 图像数据, Xstart/Ystart: 左上角, Xend/Yend: 右下角",
+          "example": "EPD_10in85b_Display_Partial(partial_data, 10, 10, 100, 100);"
+        },
+        {
+          "name": "EPD_10in85_Sleep",
+          "signature": "void EPD_10in85_Sleep(void)",
+          "description": "进入睡眠模式（低功耗，下次显示前需重新初始化）",
+          "example": "EPD_10in85_Sleep();"
+        }
+      ]
+    },
+
+    "GUI_Paint": {
+      "description": "GUI绘图层 — 点、线、矩形、圆形、字符、字符串、数字、时间、图片",
+      "types": [
+        {
+          "name": "PAINT",
+          "description": "画布结构体，包含图像缓冲区指针、宽高、旋转、镜像、缩放等信息",
+          "fields": {
+            "Image": "UBYTE* — 图像缓冲区",
+            "Width": "UWORD — 画布宽度",
+            "Height": "UWORD — 画布高度",
+            "Rotate": "UWORD — 旋转角度",
+            "Mirror": "UWORD — 镜像模式",
+            "Color": "UWORD — 当前颜色",
+            "Scale": "UWORD — 灰度等级"
+          }
+        },
+        {
+          "name": "MIRROR_IMAGE",
+          "description": "镜像枚举",
+          "values": {
+            "MIRROR_NONE": "无镜像",
+            "MIRROR_HORIZONTAL": "水平镜像",
+            "MIRROR_VERTICAL": "垂直镜像",
+            "MIRROR_ORIGIN": "原点镜像"
+          }
+        },
+        {
+          "name": "DOT_PIXEL",
+          "description": "点/线宽枚举",
+          "values": {
+            "DOT_PIXEL_1X1": "1像素宽",
+            "DOT_PIXEL_2X2": "2像素宽",
+            "DOT_PIXEL_3X3": "3像素宽",
+            "DOT_PIXEL_4X4": "4像素宽",
+            "DOT_PIXEL_5X5": "5像素宽",
+            "DOT_PIXEL_6X6": "6像素宽",
+            "DOT_PIXEL_7X7": "7像素宽",
+            "DOT_PIXEL_8X8": "8像素宽"
+          }
+        },
+        {
+          "name": "DOT_STYLE",
+          "description": "点的填充风格",
+          "values": {
+            "DOT_FILL_AROUND": "向四周扩散",
+            "DOT_FILL_RIGHTUP": "向右上扩散"
+          }
+        },
+        {
+          "name": "LINE_STYLE",
+          "description": "线条风格",
+          "values": {
+            "LINE_STYLE_SOLID": "实线",
+            "LINE_STYLE_DOTTED": "虚线"
+          }
+        },
+        {
+          "name": "DRAW_FILL",
+          "description": "图形填充风格",
+          "values": {
+            "DRAW_FILL_EMPTY": "空心（仅边框）",
+            "DRAW_FILL_FULL": "实心（填充内部）"
+          }
+        },
+        {
+          "name": "PAINT_TIME",
+          "description": "时间结构体",
+          "fields": {
+            "Year": "UWORD — 年",
+            "Month": "UBYTE — 月(1-12)",
+            "Day": "UBYTE — 日(1-30)",
+            "Hour": "UBYTE — 时(0-23)",
+            "Min": "UBYTE — 分(0-59)",
+            "Sec": "UBYTE — 秒(0-59)"
+          }
+        }
+      ],
+      "color_constants": [
+        { "name": "WHITE", "value": "0xFF", "description": "白色" },
+        { "name": "BLACK", "value": "0x00", "description": "黑色" },
+        { "name": "RED",   "value": "0x00", "description": "红色(与黑色相同，单色屏)" }
+      ],
+      "rotation_constants": [
+        { "name": "ROTATE_0",   "value": 0,   "description": "不旋转" },
+        { "name": "ROTATE_90",  "value": 90,  "description": "顺时针90度" },
+        { "name": "ROTATE_180", "value": 180, "description": "顺时针180度" },
+        { "name": "ROTATE_270", "value": 270, "description": "顺时针270度" }
+      ],
+      "gray_levels": [
+        { "name": "GRAY1", "value": "0x03", "description": "最深（接近黑色）" },
+        { "name": "GRAY2", "value": "0x02", "description": "次深" },
+        { "name": "GRAY3", "value": "0x01", "description": "灰色" },
+        { "name": "GRAY4", "value": "0x00", "description": "白色" }
+      ],
+      "functions": {
+        "init_and_clear": [
+          {
+            "name": "Paint_NewImage",
+            "signature": "void Paint_NewImage(UBYTE *image, UWORD Width, UWORD Height, UWORD Rotate, UWORD Color)",
+            "description": "创建一个新的画布，设置图像缓冲区、尺寸、旋转和颜色",
+            "params": "image: 缓冲区指针, Width: 宽度, Height: 高度, Rotate: 旋转角度, Color: 背景色",
+            "example": "Paint_NewImage(frame_buffer, 680, 480, ROTATE_0, WHITE);"
+          },
+          {
+            "name": "Paint_SelectImage",
+            "signature": "void Paint_SelectImage(UBYTE *image)",
+            "description": "切换当前选中的画布缓冲区（用于多缓冲区切换）",
+            "params": "image: 新的缓冲区指针",
+            "example": "Paint_SelectImage(backup_buffer);"
+          },
+          {
+            "name": "Paint_SetRotate",
+            "signature": "void Paint_SetRotate(UWORD Rotate)",
+            "description": "设置画布的旋转角度",
+            "params": "Rotate: ROTATE_0/90/180/270",
+            "example": "Paint_SetRotate(ROTATE_90);"
+          },
+          {
+            "name": "Paint_SetMirroring",
+            "signature": "void Paint_SetMirroring(UBYTE mirror)",
+            "description": "设置画布的镜像模式",
+            "params": "mirror: MIRROR_NONE / _HORIZONTAL / _VERTICAL / _ORIGIN",
+            "example": "Paint_SetMirroring(MIRROR_HORIZONTAL);"
+          },
+          {
+            "name": "Paint_SetPixel",
+            "signature": "void Paint_SetPixel(UWORD Xpoint, UWORD Ypoint, UWORD Color)",
+            "description": "在画布上设置单个像素的颜色",
+            "params": "Xpoint/Ypoint: 坐标, Color: 颜色值",
+            "example": "Paint_SetPixel(100, 50, BLACK);"
+          },
+          {
+            "name": "Paint_SetScale",
+            "signature": "void Paint_SetScale(UBYTE scale)",
+            "description": "设置画布的灰度等级（scale=2黑白, scale=4四灰度, scale=7七色）",
+            "params": "scale: 灰度等级",
+            "example": "Paint_SetScale(2);"
+          },
+          {
+            "name": "Paint_Clear",
+            "signature": "void Paint_Clear(UWORD Color)",
+            "description": "用指定颜色清空整个画布",
+            "params": "Color: 填充颜色(WHITE/BLACK)",
+            "example": "Paint_Clear(WHITE);"
+          },
+          {
+            "name": "Paint_ClearWindows",
+            "signature": "void Paint_ClearWindows(UWORD Xstart, UWORD Ystart, UWORD Xend, UWORD Yend, UWORD Color)",
+            "description": "用指定颜色清空指定矩形区域",
+            "params": "Xstart/Ystart: 左上角, Xend/Yend: 右下角, Color: 颜色",
+            "example": "Paint_ClearWindows(50, 50, 200, 100, WHITE);"
+          }
+        ],
+        "drawing": [
+          {
+            "name": "Paint_DrawPoint",
+            "signature": "void Paint_DrawPoint(UWORD Xpoint, UWORD Ypoint, UWORD Color, DOT_PIXEL Dot_Pixel, DOT_STYLE Dot_FillWay)",
+            "description": "绘制一个点，可指定大小和扩散方式",
+            "params": "Xpoint/Ypoint: 坐标, Color: 颜色, Dot_Pixel: 点大小(1x1~8x8), Dot_FillWay: 填充方式",
+            "example": "Paint_DrawPoint(300, 200, BLACK, DOT_PIXEL_3X3, DOT_FILL_AROUND);"
+          },
+          {
+            "name": "Paint_DrawLine",
+            "signature": "void Paint_DrawLine(UWORD Xstart, UWORD Ystart, UWORD Xend, UWORD Yend, UWORD Color, DOT_PIXEL Line_width, LINE_STYLE Line_Style)",
+            "description": "从起点到终点绘制一条线段",
+            "params": "Xstart/Ystart: 起点, Xend/Yend: 终点, Color: 颜色, Line_width: 线宽, Line_Style: 实线/虚线",
+            "example": "Paint_DrawLine(0, 240, 679, 240, BLACK, DOT_PIXEL_1X1, LINE_STYLE_SOLID);"
+          },
+          {
+            "name": "Paint_DrawRectangle",
+            "signature": "void Paint_DrawRectangle(UWORD Xstart, UWORD Ystart, UWORD Xend, UWORD Yend, UWORD Color, DOT_PIXEL Line_width, DRAW_FILL Draw_Fill)",
+            "description": "绘制矩形",
+            "params": "Xstart/Ystart: 左上角, Xend/Yend: 右下角, Color: 颜色, Line_width: 边框宽, Draw_Fill: 空心/实心",
+            "example": "Paint_DrawRectangle(10, 10, 200, 100, BLACK, DOT_PIXEL_2X2, DRAW_FILL_EMPTY);"
+          },
+          {
+            "name": "Paint_DrawCircle",
+            "signature": "void Paint_DrawCircle(UWORD X_Center, UWORD Y_Center, UWORD Radius, UWORD Color, DOT_PIXEL Line_width, DRAW_FILL Draw_Fill)",
+            "description": "绘制圆形",
+            "params": "X_Center/Y_Center: 圆心, Radius: 半径, Color: 颜色, Line_width: 边框宽, Draw_Fill: 空心/实心",
+            "example": "Paint_DrawCircle(340, 240, 50, BLACK, DOT_PIXEL_1X1, DRAW_FILL_FULL);"
+          }
+        ],
+        "text": [
+          {
+            "name": "Paint_DrawChar",
+            "signature": "void Paint_DrawChar(UWORD Xstart, UWORD Ystart, const char Acsii_Char, sFONT* Font, UWORD Color_Foreground, UWORD Color_Background)",
+            "description": "绘制单个ASCII字符",
+            "params": "Xstart/Ystart: 位置, Acsii_Char: 字符, Font: 字体指针, Color_Foreground: 前景色, Color_Background: 背景色",
+            "example": "Paint_DrawChar(100, 100, 'A', &Font16, BLACK, WHITE);"
+          },
+          {
+            "name": "Paint_DrawString_EN",
+            "signature": "void Paint_DrawString_EN(UWORD Xstart, UWORD Ystart, const char * pString, sFONT* Font, UWORD Color_Foreground, UWORD Color_Background)",
+            "description": "绘制英文字符串",
+            "params": "Xstart/Ystart: 位置, pString: 字符串指针, Font: 字体, Color_Foreground: 前景色, Color_Background: 背景色",
+            "example": "Paint_DrawString_EN(50, 50, \"Hello World!\", &Font24, BLACK, WHITE);"
+          },
+          {
+            "name": "Paint_DrawString_CN",
+            "signature": "void Paint_DrawString_CN(UWORD Xstart, UWORD Ystart, const char * pString, cFONT* font, UWORD Color_Foreground, UWORD Color_Background)",
+            "description": "绘制中文字符串（GB2312编码）",
+            "params": "Xstart/Ystart: 位置, pString: 中文字符串, font: 中文字体, Color_Foreground: 前景色, Color_Background: 背景色",
+            "example": "Paint_DrawString_CN(50, 50, \"你好世界\", &Font24CN, BLACK, WHITE);"
+          },
+          {
+            "name": "Paint_DrawNum",
+            "signature": "void Paint_DrawNum(UWORD Xpoint, UWORD Ypoint, int32_t Nummber, sFONT* Font, UWORD Color_Foreground, UWORD Color_Background)",
+            "description": "绘制数字（整数，自动转为字符串）",
+            "params": "Xpoint/Ypoint: 位置, Nummber: 整数值, Font: 字体, Color_Foreground: 前景色, Color_Background: 背景色",
+            "example": "Paint_DrawNum(50, 100, 12345, &Font16, BLACK, WHITE);"
+          },
+          {
+            "name": "Paint_DrawTime",
+            "signature": "void Paint_DrawTime(UWORD Xstart, UWORD Ystart, PAINT_TIME *pTime, sFONT* Font, UWORD Color_Foreground, UWORD Color_Background)",
+            "description": "绘制时间（格式 HH:MM:SS）",
+            "params": "Xstart/Ystart: 位置, pTime: 时间结构体指针, Font: 字体, Color_Foreground: 前景色, Color_Background: 背景色",
+            "example": "PAINT_TIME time = {2024, 8, 19, 14, 30, 0};\nPaint_DrawTime(100, 200, &time, &Font24, BLACK, WHITE);"
+          }
+        ],
+        "image": [
+          {
+            "name": "Paint_DrawBitMap",
+            "signature": "void Paint_DrawBitMap(const unsigned char* image_buffer)",
+            "description": "全屏绘制位图",
+            "params": "image_buffer: 图像数据指针",
+            "example": "Paint_DrawBitMap(&Image4color[0]);"
+          },
+          {
+            "name": "Paint_DrawBitMap_Paste",
+            "signature": "void Paint_DrawBitMap_Paste(const unsigned char* image_buffer, UWORD xStart, UWORD yStart, UWORD imageWidth, UWORD imageHeight, UBYTE flipColor)",
+            "description": "在指定位置粘贴一个位图，可翻转颜色",
+            "params": "image_buffer: 图像数据, xStart/yStart: 起始位置, imageWidth/imageHeight: 尺寸, flipColor: 是否翻转颜色",
+            "example": "Paint_DrawBitMap_Paste(small_icon, 10, 10, 32, 32, 0);"
+          },
+          {
+            "name": "Paint_DrawImage",
+            "signature": "void Paint_DrawImage(const unsigned char *image_buffer, UWORD xStart, UWORD yStart, UWORD W_Image, UWORD H_Image)",
+            "description": "在指定位置绘制图像（不翻转颜色）",
+            "params": "image_buffer: 图像数据, xStart/yStart: 起始位置, W_Image/H_Image: 图像尺寸",
+            "example": "Paint_DrawImage(logo_data, 300, 200, 80, 40);"
+          }
+        ]
+      }
+    },
+
+    "Fonts": {
+      "description": "字体定义和可用字体列表",
+      "structures": [
+        {
+          "name": "sFONT",
+          "description": "ASCII字体结构体",
+          "fields": "table: 字模数据, Width: 字符宽度, Height: 字符高度"
+        },
+        {
+          "name": "cFONT",
+          "description": "中文字体结构体（GB2312）",
+          "fields": "table: CH_CN数组, size: 汉字数量, ASCII_Width: ASCII字符宽度, Width: 汉字宽度, Height: 汉字高度"
+        },
+        {
+          "name": "CH_CN",
+          "description": "汉字字模数据结构",
+          "fields": "index[4]: 汉字内码索引, matrix[]: 点阵码数据"
+        }
+      ],
+      "available_fonts": [
+        { "name": "Font8",   "type": "sFONT", "description": "8px ASCII字体" },
+        { "name": "Font12",  "type": "sFONT", "description": "12px ASCII字体" },
+        { "name": "Font16",  "type": "sFONT", "description": "16px ASCII字体" },
+        { "name": "Font20",  "type": "sFONT", "description": "20px ASCII字体" },
+        { "name": "Font24",  "type": "sFONT", "description": "24px ASCII字体" },
+        { "name": "Font12CN","type": "cFONT", "description": "12px GB2312中文字体" },
+        { "name": "Font24CN","type": "cFONT", "description": "24px GB2312中文字体" },
+        { "name": "Font72CN","type": "cFONT", "description": "72px GB2312中文字体（在fonts.h中声明，需确认实现文件是否存在）" }
+      ]
+    },
+
+    "ImageData": {
+      "description": "内置图片数据",
+      "exports": [
+        {
+          "name": "Image4color",
+          "signature": "extern const unsigned char Image4color[];",
+          "description": "内置四色图片数据（用于演示或测试）",
+          "example": "Paint_DrawBitMap(&Image4color[0]);"
+        }
+      ]
+    },
+
+    "usage_examples": {
+      "full_refresh": {
+        "description": "全刷新的完整使用流程",
+        "code": "// 1. 初始化硬件\nDEV_Module_Init();\n\n// 2. 初始化屏幕（全刷新模式）\nEPD_10in85_Init();\n\n// 3. 分配帧缓冲区\nUBYTE *frame = (UBYTE *)malloc(680 * 480 / 8);\n\n// 4. 创建画布\nPaint_NewImage(frame, 680, 480, ROTATE_0, WHITE);\nPaint_SelectImage(frame);\nPaint_Clear(WHITE);\n\n// 5. 绘制内容\nPaint_DrawString_EN(50, 50, \"Hello EPD!\", &Font24, BLACK, WHITE);\nPaint_DrawCircle(340, 240, 100, BLACK, DOT_PIXEL_2X2, DRAW_FILL_EMPTY);\n\n// 6. 刷屏显示\nEPD_10in85_Display(frame);\n\n// 7. 睡眠\nEPD_10in85_Sleep();\n\n// 8. 释放资源\nfree(frame);\nDEV_Module_Exit();"
+      },
+      "partial_refresh": {
+        "description": "局部刷新的使用流程（适合动态更新小区域）",
+        "code": "// 1. 硬件初始化 + 全刷新初始化\nDEV_Module_Init();\nEPD_10in85_Init();\n\n// 2. 全屏刷一次内容\nPaint_NewImage(frame, 680, 480, ROTATE_0, WHITE);\nPaint_Clear(WHITE);\nPaint_DrawString_EN(10, 10, \"Static Header\", &Font16, BLACK, WHITE);\nEPD_10in85_Display(frame);\n\n// 3. 局部刷新初始化\nEPD_10in85_Init_Part();\n\n// 4. 只更新小区域\nPaint_ClearWindows(10, 100, 200, 150, WHITE);\nPaint_DrawString_EN(10, 100, \"Updated Content\", &Font16, BLACK, WHITE);\nEPD_10in85_DisplayPart(frame, 10, 100, 200, 50);\n\n// 或使用区域刷新\nEPD_10in85b_Display_Partial(frame, 10, 100, 200, 150);"
+      }
+    }
+  }
+}

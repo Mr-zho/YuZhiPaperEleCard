@@ -1,0 +1,92 @@
+{
+  "file": "BitmapFont.h",
+  "description": "位图字体渲染引擎。从 LittleFS 加载 GB2312 位图字库（HZK 格式），将 UTF-8 文本转换为点阵数据，并接入 LVGL 字体系统，用于在嵌入式屏幕上渲染中文字符",
+  "dependencies": ["LittleFS / 自定义 fs::File", "lvgl.h"],
+  "data_files_required": [
+    { "file": "HZK16 字库文件（如 /font/Bold.bin）", "description": "GB2312 编码的 16x16 点阵字库，每个字 GLYPH_W * GLYPH_H / 8 字节" },
+    { "file": "Unicode→GB2312 映射文件（如 /font/Bold.map）", "description": "二进制映射表，每条记录 6 字节：4 字节大端 Unicode + 2 字节大端 GB2312" }
+  ],
+  "class": "BitmapFont",
+  "public_methods": [
+    {
+      "name": "BitmapFont",
+      "signature": "BitmapFont()",
+      "description": "构造函数，创建位图字体实例",
+      "example": "BitmapFont myFont;"
+    },
+    {
+      "name": "SetOpenFontFileFunction",
+      "signature": "void SetOpenFontFileFunction(std::function<bool(fs::File &fp, const String &path)> callback)",
+      "description": "设置自定义文件打开回调。必须在使用 Begin() 之前调用，用于从特定文件系统（如 LittleFS）打开字库和映射表文件",
+      "param_callback": "回调参数：(输出) fs::File 引用, (输入) 文件路径。返回 true 表示成功",
+      "example": "myFont.SetOpenFontFileFunction([](fs::File &fp, const String &path) -> bool {\n    fp = LittleFS.open(path, \"r\");\n    return !!fp;\n});"
+    },
+    {
+      "name": "Begin",
+      "signature": "bool Begin(const String &font_path, const String &map_path, uint glyph_w, uint glyph_h)",
+      "description": "初始化字体系统。打开字库文件和映射文件，获取字体位图尺寸信息",
+      "param_font_path": "字库文件路径（如 \"/font/Bold.bin\"）",
+      "param_map_path": "Unicode→GB2312 映射文件路径（如 \"/font/Bold.map\"）",
+      "param_glyph_w": "单个字符宽度（像素），HZK16 一般为 16",
+      "param_glyph_h": "单个字符高度（像素），HZK16 一般为 16",
+      "return": "true=初始化成功, false=文件打开失败",
+      "call_sequence": "必须在 SetOpenFontFileFunction 之后调用",
+      "example": "if (!myFont.Begin(\"/font/Bold.bin\", \"/font/Bold.map\", 16, 16)) {\n    Serial.println(\"字库初始化失败\");\n}"
+    },
+    {
+      "name": "UTF8ToUnicode",
+      "signature": "uint32_t UTF8ToUnicode(const char *s, uint8_t *bytesUsed)",
+      "description": "将 UTF-8 编码字符串的第一个字符转换为 Unicode 码点",
+      "param_s": "UTF-8 字符串指针",
+      "param_bytesUsed": "输出参数，返回该字符占用的 UTF-8 字节数（1~4）",
+      "return": "Unicode 码点，解析失败返回 0",
+      "example": "uint8_t len;\nuint32_t unicode = myFont.UTF8ToUnicode(\"你\", &len);  // len=3, unicode=0x4F60"
+    },
+    {
+      "name": "UnicodeToGB2312",
+      "signature": "bool UnicodeToGB2312(uint32_t unicode, uint16_t *gb)",
+      "description": "将 Unicode 码点转换为 GB2312 编码（通过映射文件查询）",
+      "param_unicode": "Unicode 码点",
+      "param_gb": "输出参数，GB2312 编码值",
+      "return": "true=查找成功, false=未在映射表中找到",
+      "example": "uint16_t gb;\nmyFont.UnicodeToGB2312(0x4F60, &gb);  // gb = GB2312 编码"
+    },
+    {
+      "name": "GetBitmapByGB2312",
+      "signature": "bool GetBitmapByGB2312(uint16_t gb, uint8_t *out)",
+      "description": "根据 GB2312 编码从字库中读取点阵数据。自动进行颜色反转（0→1, 1→0）",
+      "param_gb": "GB2312 编码值",
+      "param_out": "输出缓冲区，大小应 >= GLYPH_BYTES（GLYPH_W * GLYPH_H / 8）",
+      "return": "true=读取成功, false=编码范围外或文件读取失败",
+      "note": "GB2312 有效范围：hi: 0xA1~0xF7, lo: 0xA1~0xFE",
+      "example": "uint8_t bitmap[32];  // 16x16 点阵 = 32 字节\nif (myFont.GetBitmapByGB2312(gb, bitmap)) {\n    // bitmap 包含反转后的点阵数据\n}"
+    },
+    {
+      "name": "UTF8ToBitmap",
+      "signature": "bool UTF8ToBitmap(const char *s, uint8_t *out, uint8_t *bytesUsed)",
+      "description": "一步完成 UTF-8 → Unicode → GB2312 → 点阵的完整转换链路",
+      "param_s": "UTF-8 字符串指针",
+      "param_out": "输出缓冲区，接收点阵数据",
+      "param_bytesUsed": "输出参数，返回该字符占用的 UTF-8 字节数",
+      "return": "true=转换成功, false=任一环节失败",
+      "example": "uint8_t bitmap[32];\nuint8_t len;\nif (myFont.UTF8ToBitmap(\"好\", bitmap, &len)) {\n    // 将 32 字节点阵绘制到屏幕上\n}"
+    },
+    {
+      "name": "InitLVGLFont",
+      "signature": "void InitLVGLFont(lv_font_t *lv_font)",
+      "description": "将当前 BitmapFont 实例绑定到 LVGL 字体对象。之后 LVGL 即可使用该字体渲染中文字符",
+      "param_lv_font": "外部定义的 lv_font_t 结构体指针，LVGL 将调用此字体的 get_glyph_dsc 回调来获取字形数据",
+      "call_sequence": "必须在 Begin() 成功后调用",
+      "example": "lv_font_t my_lv_font;\nmyFont.InitLVGLFont(&my_lv_font);\n\n// 在 LVGL 中使用\nlv_obj_t *label = lv_label_create(lv_scr_act());\nlv_obj_set_style_text_font(label, &my_lv_font, 0);\nlv_label_set_text(label, \"你好世界\");"
+    }
+  ],
+  "usage_flow": [
+    "1. 创建 BitmapFont 实例",
+    "2. 调用 SetOpenFontFileFunction() 注册 LittleFS 文件打开回调",
+    "3. 调用 Begin(font_path, map_path, glyph_w, glyph_h) 初始化",
+    "4. 【可选】调用 InitLVGLFont() 接入 LVGL 字体系统，或直接使用 UTF8ToBitmap() 获取点阵数据",
+    "5. 使用 LVGL label 设置字体后显示中文文本"
+  ],
+  "note": "GLYPH_BYTES = GLYPH_W * GLYPH_H / 8。对于标准的 16x16 点阵字库（HZK16），GLYPH_W=16, GLYPH_H=16, GLYPH_BYTES=32",
+  "example_complete": "#include <LittleFS.h>\n#include \"BitmapFont.h\"\n\nBitmapFont myFont;\nlv_font_t my_lv_font;\n\nvoid setup() {\n    // 注册文件打开回调\n    myFont.SetOpenFontFileFunction([](fs::File &fp, const String &path) -> bool {\n        fp = LittleFS.open(path, \"r\");\n        return !!fp;\n    });\n\n    // 初始化字库\n    if (!myFont.Begin(\"/font/Bold.bin\", \"/font/Bold.map\", 16, 16)) {\n        Serial.println(\"字库加载失败\");\n        return;\n    }\n\n    // 接入 LVGL\n    myFont.InitLVGLFont(&my_lv_font);\n\n    // 创建中文标签\n    lv_obj_t *label = lv_label_create(lv_scr_act());\n    lv_obj_set_style_text_font(label, &my_lv_font, 0);\n    lv_label_set_text(label, \"你好世界\");\n}"
+}

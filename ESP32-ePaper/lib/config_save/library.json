@@ -1,0 +1,12 @@
+{
+  "name": "config_save",          
+  "version": "1.0.0.0",        
+  "description": "一个用于在ESP32上保存配置的库", 
+  "keywords": ["configuration", "save", "ESP32"], 
+  "authors": {
+    "name": "qifeifei",
+    "email": "qifei0519@outlook.com"
+  },
+  "frameworks": "arduino",   
+  "platforms": "espressif32" 
+}

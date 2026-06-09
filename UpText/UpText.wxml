@@ -1,0 +1,10 @@
+<view class="container">
+  <textarea 
+    placeholder="请输入要发送的文字"
+    value="{{inputText}}"
+    bindinput="onInput"
+    class="input-box"
+  ></textarea>
+
+  <button bindtap="onSend" class="send-btn">发送</button>
+</view>

@@ -1,0 +1,12 @@
+{
+  "name": "BleReceiver",          
+  "version": "1.0.0.1",        
+  "description": "一个用于在ESP32上接收BLE数据的库,支持文本和图像数据的接收和处理。依赖h2zero/NimBLE-Arduino@^1.4.0库。", 
+  "keywords": ["BLE", "receiver", "ESP32"], 
+  "authors": {
+    "name": "qifeifei",
+    "email": "qifei0519@outlook.com"
+  },
+  "frameworks": "arduino",   
+  "platforms": "espressif32" 
+}

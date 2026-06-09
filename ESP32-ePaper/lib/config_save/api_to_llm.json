@@ -1,0 +1,104 @@
+{
+  "file": "config_save.h",
+  "description": "用户配置管理类，通过 LittleFS + ArduinoJson 将用户配置持久化存储到 /config.json",
+  "dependencies": ["LittleFS", "ArduinoJson", "config.h (UserConfig struct)"],
+  "related_struct": {
+    "name": "UserConfig",
+    "defined_in": "config.h",
+    "fields": [
+      { "name": "birth_year", "type": "int", "default": "2000", "description": "出生年份" },
+      { "name": "birth_month", "type": "int", "default": "1", "description": "出生月份 (1-12)" },
+      { "name": "birth_day", "type": "int", "default": "1", "description": "出生日期 (1-31)" },
+      { "name": "wifi_ssid", "type": "String", "description": "WiFi 名称" },
+      { "name": "wifi_pass", "type": "String", "description": "WiFi 密码" }
+    ]
+  },
+  "class": "UserConfigManager",
+  "private_details": {
+    "config_file_path": "/config.json",
+    "storage_format": "JSON, 最大 256 字节",
+    "default_config": { "birth_year": 2000, "birth_month": 1, "birth_day": 1, "wifi_ssid": "", "wifi_pass": "" }
+  },
+  "public_methods": [
+    {
+      "name": "begin",
+      "signature": "bool begin()",
+      "description": "初始化配置管理器。挂载 LittleFS 并自动加载现有配置；若配置文件不存在或 JSON 解析失败，自动创建默认配置并保存",
+      "return": "true=成功, false=失败（LittleFS 挂载失败）",
+      "call_sequence": "必须在 setup() 中首先调用",
+      "example": "UserConfigManager config;\nif (!config.begin()) {\n  Serial.println(\"配置初始化失败\");\n}"
+    },
+    {
+      "name": "get",
+      "signature": "UserConfig get() const",
+      "description": "获取当前配置的副本",
+      "return": "UserConfig 结构体",
+      "example": "UserConfig cfg = config.get();\nSerial.printf(\"生日: %d-%02d-%02d\\n\", cfg.birth_year, cfg.birth_month, cfg.birth_day);"
+    },
+    {
+      "name": "save",
+      "signature": "bool save()",
+      "description": "将当前 cfg 对象保存到 LittleFS /config.json 文件",
+      "return": "true=保存成功, false=失败（打开或写入文件失败）",
+      "example": "if (config.save()) {\n  Serial.println(\"配置已保存\");\n} else {\n  Serial.println(\"保存失败\");\n}"
+    },
+    {
+      "name": "load",
+      "signature": "bool load()",
+      "description": "从 LittleFS /config.json 重新读取配置。文件不存在或 JSON 格式错误时自动重置为默认配置并保存",
+      "return": "true=加载成功, false=失败",
+      "example": "config.load();"
+    },
+    {
+      "name": "set",
+      "signature": "void set(const UserConfig &newCfg)",
+      "description": "用完整的 UserConfig 结构体替换当前配置（仅修改内存，不会自动写入 Flash）",
+      "note": "修改后需手动调用 save() 才会持久化",
+      "example": "UserConfig newCfg = { 1997, 5, 20, \"MyWiFi\", \"password\" };\nconfig.set(newCfg);\nconfig.save();"
+    },
+    {
+      "name": "setWiFi",
+      "signature": "void setWiFi(const String &ssid, const String &pass)",
+      "description": "仅修改 WiFi 配置项（仅修改内存，不会自动写入 Flash）",
+      "note": "修改后需手动调用 save() 才会持久化",
+      "example": "config.setWiFi(\"HomeWiFi\", \"mypassword\");\nconfig.save();"
+    },
+    {
+      "name": "setBirthDate",
+      "signature": "void setBirthDate(int year, int month, int day)",
+      "description": "仅修改生日配置项（仅修改内存，不会自动写入 Flash）",
+      "note": "修改后需手动调用 save() 才会持久化",
+      "example": "config.setBirthDate(1997, 5, 20);\nconfig.save();"
+    }
+  ],
+  "json_storage_format": {
+    "path": "/config.json",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "birth_year":  { "type": "integer", "description": "出生年份" },
+        "birth_month": { "type": "integer", "description": "出生月份" },
+        "birth_day":   { "type": "integer", "description": "出生日期" },
+        "wifi_ssid":   { "type": "string", "description": "WiFi 名称" },
+        "wifi_pass":   { "type": "string", "description": "WiFi 密码" }
+      },
+      "required": ["birth_year", "birth_month", "birth_day", "wifi_ssid", "wifi_pass"]
+    },
+    "example": {
+      "birth_year": 1997,
+      "birth_month": 5,
+      "birth_day": 20,
+      "wifi_ssid": "HomeWiFi",
+      "wifi_pass": "mypassword"
+    }
+  },
+  "usage_flow": [
+    "1. 创建 UserConfigManager 实例（全局或局部）",
+    "2. 在 setup() 中调用 begin() 加载配置",
+    "3. 使用 get() 读取当前配置",
+    "4. 使用 set() / setWiFi() / setBirthDate() 修改配置（仅内存）",
+    "5. 修改后调用 save() 写入 Flash",
+    "6. 需要重新加载时调用 load()"
+  ],
+  "example_complete": "#include \"config_save.h\"\n#include \"config.h\"\n\nUserConfigManager configManager;\n\nvoid setup() {\n  Serial.begin(115200);\n  \n  if (configManager.begin()) {\n    UserConfig cfg = configManager.get();\n    Serial.printf(\"生日: %d-%02d-%02d\\n\", cfg.birth_year, cfg.birth_month, cfg.birth_day);\n  }\n  \n  // 修改并保存\n  configManager.setBirthDate(1997, 5, 20);\n  configManager.save();\n}\n\nvoid loop() {}"
+}

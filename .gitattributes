@@ -1,0 +1,1 @@
+ESP32-ePaper/scripts/FontTool/FangSongTi_360x360.bin filter=lfs diff=lfs merge=lfs -text
