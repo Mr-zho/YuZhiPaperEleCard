@@ -98,12 +98,12 @@ void EPaper::SetPixel_1(UWORD Xpoint, UWORD Ypoint, UWORD Color)
         return;
     }
 
-    if(X > Paint.WidthMemory)
+    if(X >= Paint.WidthMemory)
     {
         return;
     }
 
-    if(X > Paint.WidthMemory || Y > Paint.HeightMemory)
+    if(X >= Paint.WidthMemory || Y >= Paint.HeightMemory)
     {
         Debug("Exceeding display boundaries\r\n");
         return;
@@ -191,7 +191,7 @@ void EPaper::SetPixel_2(UWORD Xpoint, UWORD Ypoint, UWORD Color)
         return;
     }
 
-    if(X > Paint.WidthMemory || Y > Paint.HeightMemory)
+    if(X >= Paint.WidthMemory || Y >= Paint.HeightMemory)
     {
         Debug("Exceeding display boundaries\r\n");
         return;
@@ -379,7 +379,7 @@ void EPaper::drawFontWithScale1(UWORD x, UWORD y, std::vector<std::vector<uint8_
             }
             if (font_Width % 8 != 0) ptr++;
         }
-        x += font_Width;
+        x += font_space;
     }
 }
 
@@ -509,6 +509,39 @@ void EPaper::Display(UWORD Xstart, UWORD Ystart, std::vector<std::vector<uint8_t
                     UWORD Color_Foreground, 
                     UWORD font_BackColor, UWORD screen_BackColor)
 {
+    if (font.empty()) {
+        Serial.println("No font data to display");
+        return;
+    }
+
+    const uint16_t glyphWidth = font_Width * font_scale;
+    const uint16_t glyphHeight = font_Height * font_scale;
+    uint16_t gap = 40;
+    uint32_t textWidth = (uint32_t)glyphWidth * font.size();
+
+    if (font.size() > 1) {
+        textWidth += (uint32_t)gap * (font.size() - 1);
+    }
+
+    if (textWidth > width_) {
+        gap = 0;
+        textWidth = (uint32_t)glyphWidth * font.size();
+    }
+
+    font_space = glyphWidth + gap;
+
+    if (Xstart == 0 && textWidth < width_) {
+        Xstart = (width_ - textWidth) / 2;
+    }
+    if (Ystart == 0 && glyphHeight < height_) {
+        Ystart = (height_ - glyphHeight) / 2;
+    }
+
+    Paint_Clear(screen_BackColor);
+    DrawFont(Xstart, Ystart, font, Color_Foreground, font_BackColor, wrapper1);
+    EPD_10in85_Display(Paint.Image);
+    return;
+
     int font_num = font.size();
     switch(font_num)
     {
@@ -635,13 +668,14 @@ void EPaper::EPaper_Init()
     DEV_Delay_ms(500);
 
     //Create a new image cache
-    UDOUBLE Imagesize = ((EPD_10in85_WIDTH % 8 == 0)? (EPD_10in85_WIDTH / 8 ): (EPD_10in85_WIDTH / 8 + 1)) * EPD_10in85_HEIGHT;
+    UWORD fullWidth = EPD_10in85_WIDTH * 2;
+    UDOUBLE Imagesize = ((fullWidth % 8 == 0)? (fullWidth / 8 ): (fullWidth / 8 + 1)) * EPD_10in85_HEIGHT;
     if((Image = (UBYTE *)malloc(Imagesize)) == NULL) {
         Debug("Failed to apply for black memory...\r\n");
         while (1);
     }
     Debug("Paint_NewImage\r\n");
-    Paint_NewImage(Image, EPD_10in85_WIDTH*2, EPD_10in85_HEIGHT, 0, WHITE);
+    Paint_NewImage(Image, fullWidth, EPD_10in85_HEIGHT, 0, WHITE);
     Paint_SetScale(2);
     Paint_SelectImage(Image);
     Paint_Clear(WHITE);

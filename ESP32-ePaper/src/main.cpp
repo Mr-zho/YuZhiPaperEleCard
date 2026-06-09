@@ -57,11 +57,6 @@ bool tf_get_glyph_gb2312(uint16_t gb, uint8_t *out)
         return false;
     }
 
-    /* ========= 关键：颜色反转 ========= */
-    for (uint32_t i = 0; i < GLYPH_BYTES; i++) {
-        out[i] = ~out[i];
-    }
-
     return true;
 }
 
@@ -161,9 +156,9 @@ void setup()
         Serial.println(text);
         const char *p = text.c_str();
         if (p == nullptr || *p == '\0') return;
-        uint32_t codeList[3];
-        uint8_t codeCount = 0;
-        while (*p && codeCount < 3) 
+        std::vector<uint16_t> codeList;
+        codeList.reserve(5);
+        while (*p && codeList.size() < 5)
         {
             uint8_t len;
             uint32_t code = utf8ToUnicode(p, &len);
@@ -176,28 +171,32 @@ void setup()
             }
             p += len;
             uint16_t gb;
-            if(unicode_to_gb2312(code, &gb)) codeList[codeCount++] = gb; 
+            if(unicode_to_gb2312(code, &gb)) {
+                codeList.push_back(gb);
+            } else {
+                Serial.printf("No GB2312 mapping for U+%04X\n", code);
+            }
         }
 
-        if (codeCount > 0) 
+        if (!codeList.empty())
         {
             fontVector.clear();
             Serial.print("Parsed gb2312 code points: ");
-            for (uint8_t i = 0; i < codeCount; i++) 
+            for (size_t i = 0; i < codeList.size(); i++)
             {
                 Serial.printf("0x%X ", codeList[i]);
                 if(tf_get_glyph_gb2312(codeList[i], glyph_buf)) // “永”
                 {
                     // 通过传入数组首地址和结束地址，让 vector 自动复制这 7200 字节
-                    fontVector.push_back(std::vector<uint8_t>(glyph_buf, glyph_buf + 7200));
+                    fontVector.push_back(std::vector<uint8_t>(glyph_buf, glyph_buf + GLYPH_BYTES));
                     Serial.println("glyph loaded");
-                    EPD_10in85_DisplayPart(glyph_buf, 100 + i * (GLYPH_W + 10), 100, GLYPH_W, GLYPH_H);
                 } else {
                     Serial.println("Failed to load glyph");
                 }
             }
-            // ePaper.Display(0, 0, fontVector, BLACK, BLACK, WHITE);
-            // ePaper.Display(0, 0, fontVector, BLACK, BLACK, WHITE);
+            if (!fontVector.empty()) {
+                ePaper.Display(0, 0, fontVector, BLACK, WHITE, WHITE);
+            }
             Serial.println("Update display with new font data");
         }
     });

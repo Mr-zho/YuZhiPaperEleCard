@@ -16,8 +16,8 @@ class EPaper
 private:
     uint8_t font_scale = 1;             // 字体放大倍数，默认2倍
     File fontFile;
-    uint16_t font_Height = 124 * 1;     
-    uint16_t font_Width = 96 * 1;
+    uint16_t font_Height = 240;
+    uint16_t font_Width = 240;
     uint16_t width_, height_;
     uint16_t font_space = font_Width * font_scale;
     UBYTE *Image;
